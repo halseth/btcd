@@ -57,7 +57,7 @@ func btcdExecutablePath() (string, error) {
 
 	btcdPkgPath := filepath.Join(rpctestDir, "..", "..", "..")
 	fmt.Println("btcdPkgPath", btcdPkgPath)
-	btcdPkg, err := build.ImportDir(btcdPkgPath, build.FindOnly)
+	btcdPkg, err := build.ImportDir(btcdPkgPath, 0)
 	if err != nil {
 		return "", fmt.Errorf("Failed to build btcd: %v", err)
 	}
