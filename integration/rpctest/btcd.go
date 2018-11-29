@@ -6,10 +6,14 @@ package rpctest
 
 import (
 	"fmt"
+	"go/build"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 var (
@@ -52,13 +56,29 @@ func btcdExecutablePath() (string, error) {
 	}
 	fmt.Println("rpctestDir", rpctestDir)
 
+	btcdPkgPath := filepath.Join(rpctestDir, "..", "..", "..")
+	fmt.Println("btcdPkgPath", btcdPkgPath)
+	index := strings.LastIndex(btcdPkgPath, "@")
+	fmt.Println("index", index)
+	if index > 0 {
+		btcdPkgPath = btcdPkgPath[:index]
+	}
+	fmt.Println("btcdPkgPath", btcdPkgPath)
+
+	btcdPkg, err := build.ImportDir(btcdPkgPath, build.FindOnly)
+	if err != nil {
+		return "", fmt.Errorf("Failed to build btcd: %v", err)
+	}
+
+	fmt.Println("btcdPgk", spew.Sdump(btcdPkg))
+
 	// Build btcd and output an executable in a static temp path.
 	outputPath := filepath.Join(testDir, "btcd")
 	if runtime.GOOS == "windows" {
 		outputPath += ".exe"
 	}
 	fmt.Println("output path", outputPath)
-	cmd := exec.Command("go", "build", "-o", outputPath, "github.com/btcsuite/btcd")
+	cmd := exec.Command("go", "build", "-o", outputPath, btcdPkg.ImportPath)
 	fmt.Println("command", cmd)
 	err = cmd.Run()
 	if err != nil {
