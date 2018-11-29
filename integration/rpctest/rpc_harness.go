@@ -99,6 +99,7 @@ type Harness struct {
 // NOTE: This function is safe for concurrent access.
 func New(activeNet *chaincfg.Params, handlers *rpcclient.NotificationHandlers,
 	extraArgs []string) (*Harness, error) {
+	fmt.Println("new harness")
 
 	harnessStateMtx.Lock()
 	defer harnessStateMtx.Unlock()
@@ -314,6 +315,7 @@ func (h *Harness) connectRPCClient() error {
 	rpcConf := h.node.config.rpcConnConfig()
 	for i := 0; i < h.maxConnRetries; i++ {
 		if client, err = rpcclient.New(&rpcConf, h.handlers); err != nil {
+			fmt.Println(err)
 			time.Sleep(time.Duration(i) * 50 * time.Millisecond)
 			continue
 		}

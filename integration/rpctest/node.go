@@ -46,6 +46,7 @@ func newConfig(prefix, certFile, keyFile string, extra []string) (*nodeConfig, e
 	if err != nil {
 		btcdPath = "btcd"
 	}
+	fmt.Println("using btcd path", btcdPath)
 
 	a := &nodeConfig{
 		listen:    "127.0.0.1:18555",

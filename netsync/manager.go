@@ -6,6 +6,7 @@ package netsync
 
 import (
 	"container/list"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -236,6 +237,7 @@ func (sm *SyncManager) startSync() {
 	}
 
 	best := sm.chain.BestSnapshot()
+	fmt.Println("best state is %v at height %v", best.Hash, best.Height)
 	var bestPeer *peerpkg.Peer
 	for peer, state := range sm.peerStates {
 		if !state.syncCandidate {
