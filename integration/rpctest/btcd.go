@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 var (
@@ -59,7 +61,7 @@ func btcdExecutablePath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to build btcd: %v", err)
 	}
-	fmt.Println("btcdPkg", btcdPkg)
+	fmt.Println("btcdPkg", spew.Sdump(btcdPkg))
 
 	// Build btcd and output an executable in a static temp path.
 	outputPath := filepath.Join(testDir, "btcd")
