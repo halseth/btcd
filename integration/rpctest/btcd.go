@@ -43,6 +43,7 @@ func btcdExecutablePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	fmt.Println("basedir", testDir)
 
 	// Determine import path of this package. Not necessarily btcsuite/btcd if
 	// this is a forked repo.
@@ -50,18 +51,24 @@ func btcdExecutablePath() (string, error) {
 	if !ok {
 		return "", fmt.Errorf("Cannot get path to btcd source code")
 	}
+	fmt.Println("rpctestDir", rpctestDir)
+
 	btcdPkgPath := filepath.Join(rpctestDir, "..", "..", "..")
+	fmt.Println("btcdPkgPath", btcdPkgPath)
 	btcdPkg, err := build.ImportDir(btcdPkgPath, build.FindOnly)
 	if err != nil {
 		return "", fmt.Errorf("Failed to build btcd: %v", err)
 	}
+	fmt.Println("btcdPkg", btcdPkg)
 
 	// Build btcd and output an executable in a static temp path.
 	outputPath := filepath.Join(testDir, "btcd")
 	if runtime.GOOS == "windows" {
 		outputPath += ".exe"
 	}
+	fmt.Println("output path", outputPath)
 	cmd := exec.Command("go", "build", "-o", outputPath, btcdPkg.ImportPath)
+	fmt.Println("command", cmd)
 	err = cmd.Run()
 	if err != nil {
 		return "", fmt.Errorf("Failed to build btcd: %v", err)
