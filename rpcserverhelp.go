@@ -725,6 +725,7 @@ var rpcResultTypes = map[string][]interface{}{
 	"ping":                  nil,
 	"searchrawtransactions": {(*string)(nil), (*[]btcjson.SearchRawTransactionsResult)(nil)},
 	"sendrawtransaction":    {(*string)(nil)},
+	"removetransaction":     nil,
 	"setgenerate":           nil,
 	"stop":                  {(*string)(nil)},
 	"submitblock":           {nil, (*string)(nil)},

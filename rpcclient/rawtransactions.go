@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -381,6 +382,48 @@ func (c *Client) SendRawTransactionAsync(tx *wire.MsgTx, allowHighFees bool) Fut
 // then relay it to the network.
 func (c *Client) SendRawTransaction(tx *wire.MsgTx, allowHighFees bool) (*chainhash.Hash, error) {
 	return c.SendRawTransactionAsync(tx, allowHighFees).Receive()
+}
+
+// FutureRemoveTransactionResult is a future promise to deliver the result
+// of a FutureRemoveTransactionAsync RPC invocation (or an applicable error).
+type FutureRemoveTransactionResult chan *response
+
+// Receive waits for the response promised by the future and returns information
+// about a funding attempt
+func (r FutureRemoveTransactionResult) Receive() error {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return err
+	}
+
+	if string(res) != "null" {
+		var result string
+		err = json.Unmarshal(res, &result)
+		if err != nil {
+			return err
+		}
+
+		return errors.New(result)
+	}
+
+	return nil
+}
+
+// RemoveTransactionAsync returns an instance of a type that can be used to
+// get the result of the RPC at some future time by invoking the Receive
+// function on the returned instance.
+//
+// See RemoveTransaction for the blocking version and more details.
+func (c *Client) RemoveTransactionAsync(txHash *chainhash.Hash) FutureRemoveTransactionResult {
+
+	cmd := btcjson.NewRemoveTransactionCmd(txHash.String())
+	return c.sendCmd(cmd)
+}
+
+// RemoveTransaction returns the result of trying to fund the given transaction with
+// funds from the node wallet
+func (c *Client) RemoveTransaction(txHash *chainhash.Hash) error {
+	return c.RemoveTransactionAsync(txHash).Receive()
 }
 
 // FutureSignRawTransactionResult is a future promise to deliver the result

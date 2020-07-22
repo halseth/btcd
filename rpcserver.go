@@ -165,6 +165,7 @@ var rpcHandlersBeforeInit = map[string]commandHandler{
 	"ping":                  handlePing,
 	"searchrawtransactions": handleSearchRawTransactions,
 	"sendrawtransaction":    handleSendRawTransaction,
+	"removetransaction":     handleRemoveTransaction,
 	"setgenerate":           handleSetGenerate,
 	"stop":                  handleStop,
 	"submitblock":           handleSubmitBlock,
@@ -274,6 +275,7 @@ var rpcLimited = map[string]struct{}{
 	"gettxout":              {},
 	"searchrawtransactions": {},
 	"sendrawtransaction":    {},
+	"removetransaction":     {},
 	"submitblock":           {},
 	"uptime":                {},
 	"validateaddress":       {},
@@ -3397,6 +3399,27 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 	s.cfg.ConnMgr.AddRebroadcastInventory(iv, txD)
 
 	return tx.Hash().String(), nil
+}
+
+func handleRemoveTransaction(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	c := cmd.(*btcjson.RemoveTransactionCmd)
+
+	hexStr := c.HexTxHash
+	txHash, err := chainhash.NewHashFromStr(hexStr)
+	if err != nil {
+		return nil, rpcDecodeHexError(hexStr)
+	}
+
+	tx, err := s.cfg.TxMemPool.FetchTransaction(txHash)
+	if err != nil {
+		return nil, &btcjson.RPCError{
+			Code:    btcjson.ErrRPCNoTxInfo,
+			Message: "Tx not found: " + err.Error(),
+		}
+	}
+
+	s.cfg.TxMemPool.RemoveTransaction(tx, true)
+	return nil, nil
 }
 
 // handleSetGenerate implements the setgenerate command.

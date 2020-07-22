@@ -761,6 +761,19 @@ func NewBitcoindSendRawTransactionCmd(hexTx string, maxFeeRate int32) *SendRawTr
 	}
 }
 
+// RemoveTransactionCmd defines the removetransaction JSON-RPC command.
+type RemoveTransactionCmd struct {
+	HexTxHash string
+}
+
+// NewRemoveTransactionCmd returns a new instance which can be used to issue a
+// removetransaction JSON-RPC command.
+func NewRemoveTransactionCmd(hexTxHash string) *RemoveTransactionCmd {
+	return &RemoveTransactionCmd{
+		HexTxHash: hexTxHash,
+	}
+}
+
 // SetGenerateCmd defines the setgenerate JSON-RPC command.
 type SetGenerateCmd struct {
 	Generate     bool
@@ -929,6 +942,7 @@ func init() {
 	MustRegisterCmd("reconsiderblock", (*ReconsiderBlockCmd)(nil), flags)
 	MustRegisterCmd("searchrawtransactions", (*SearchRawTransactionsCmd)(nil), flags)
 	MustRegisterCmd("sendrawtransaction", (*SendRawTransactionCmd)(nil), flags)
+	MustRegisterCmd("removetransaction", (*RemoveTransactionCmd)(nil), flags)
 	MustRegisterCmd("setgenerate", (*SetGenerateCmd)(nil), flags)
 	MustRegisterCmd("stop", (*StopCmd)(nil), flags)
 	MustRegisterCmd("submitblock", (*SubmitBlockCmd)(nil), flags)
