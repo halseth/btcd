@@ -176,6 +176,8 @@ type taprootExecutionCtx struct {
 	sigOpsBudget int32
 
 	mustSucceed bool
+
+	internalKey *btcec.PublicKey
 }
 
 // sigOpsDelta is both the starting budget for sig ops for tapscript
@@ -759,6 +761,7 @@ func (vm *Engine) verifyWitnessProgram(witness wire.TxWitness) error {
 			vm.taprootCtx.tapLeafHash = NewBaseTapLeaf(
 				witnessScript,
 			).TapHash()
+			vm.taprootCtx.internalKey = controlBlock.InternalKey
 
 			// Otherwise, we'll now "recurse" one level deeper, and
 			// set the remaining witness (leaving off the annex and
