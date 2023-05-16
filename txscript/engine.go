@@ -168,6 +168,17 @@ type taprootExecutionCtx struct {
 	sigOpsBudget int32
 
 	mustSucceed bool
+
+	internalKey *btcec.PublicKey
+	taprootHash []byte
+
+	// map outputidx -> []{inputidx,amt}
+	deferredAmounts map[scriptNum][]inputAmt
+}
+
+type inputAmt struct {
+	index int
+	amt   int64
 }
 
 // sigOpsDelta is both the starting budget for sig ops for tapscript
@@ -192,8 +203,9 @@ func (t *taprootExecutionCtx) tallysigOp() error {
 // context.
 func newTaprootExecutionCtx(inputWitnessSize int32) *taprootExecutionCtx {
 	return &taprootExecutionCtx{
-		codeSepPos:   blankCodeSepValue,
-		sigOpsBudget: sigOpsDelta + inputWitnessSize,
+		codeSepPos:      blankCodeSepValue,
+		sigOpsBudget:    sigOpsDelta + inputWitnessSize,
+		deferredAmounts: make(map[scriptNum][]inputAmt),
 	}
 }
 
@@ -751,6 +763,8 @@ func (vm *Engine) verifyWitnessProgram(witness wire.TxWitness) error {
 			vm.taprootCtx.tapLeafHash = NewBaseTapLeaf(
 				witnessScript,
 			).TapHash()
+			vm.taprootCtx.internalKey = controlBlock.InternalKey
+			vm.taprootCtx.taprootHash = controlBlock.RootHash(witnessScript)
 
 			// Otherwise, we'll now "recurse" one level deeper, and
 			// set the remaining witness (leaving off the annex and
@@ -876,6 +890,27 @@ func (vm *Engine) DisasmScript(idx int) (string, error) {
 func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 	if vm.taprootCtx != nil && vm.taprootCtx.mustSucceed {
 		return nil
+	}
+
+	// TODO: should be checked somewhere else? Must check BIP
+	if vm.taprootCtx != nil {
+		for outputIdx, inputs := range vm.taprootCtx.deferredAmounts {
+			var outputAmt int64
+			seen := make(map[int]struct{})
+			for _, inp := range inputs {
+				if _, ok := seen[inp.index]; ok {
+					// TODO: is this a real error?
+					return fmt.Errorf("input counted twice")
+				}
+				seen[inp.index] = struct{}{}
+
+				outputAmt += inp.amt
+			}
+
+			if vm.tx.TxOut[outputIdx].Value < outputAmt {
+				return fmt.Errorf("output amt too low")
+			}
+		}
 	}
 
 	// Check execution is actually done by ensuring the script index is after
@@ -1145,6 +1180,7 @@ func (vm *Engine) Execute() (err error) {
 		}
 	}
 
+	// checks if 01 is on the stack
 	return vm.CheckErrorCondition(true)
 }
 
