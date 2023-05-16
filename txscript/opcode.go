@@ -18,6 +18,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -228,7 +229,7 @@ const (
 	OP_NOP9                = 0xb8 // 184
 	OP_NOP10               = 0xb9 // 185
 	OP_CHECKSIGADD         = 0xba // 186
-	OP_UNKNOWN187          = 0xbb // 187
+	OP_CHECKCONTRACTVERIFY = 0xbb // 187
 	OP_UNKNOWN188          = 0xbc // 188
 	OP_UNKNOWN189          = 0xbd // 189
 	OP_UNKNOWN190          = 0xbe // 190
@@ -513,8 +514,10 @@ var opcodeArray = [256]opcode{
 	OP_NOP9:  {OP_NOP9, "OP_NOP9", 1, opcodeNop},
 	OP_NOP10: {OP_NOP10, "OP_NOP10", 1, opcodeNop},
 
+	// Soft-forked upcodes
+	OP_CHECKCONTRACTVERIFY: {OP_CHECKCONTRACTVERIFY, "OP_CHECKCONTRACTVERIFY", 1, opcodeCheckContractVerify},
+
 	// Undefined opcodes.
-	OP_UNKNOWN187: {OP_UNKNOWN187, "OP_UNKNOWN187", 1, opcodeInvalid},
 	OP_UNKNOWN188: {OP_UNKNOWN188, "OP_UNKNOWN188", 1, opcodeInvalid},
 	OP_UNKNOWN189: {OP_UNKNOWN189, "OP_UNKNOWN189", 1, opcodeInvalid},
 	OP_UNKNOWN190: {OP_UNKNOWN190, "OP_UNKNOWN190", 1, opcodeInvalid},
@@ -617,26 +620,26 @@ var opcodeOnelineRepls = map[string]string{
 // codes that cause execution to automatically succeed. This map is used to
 // quickly look up the op codes during script pre-processing.
 var successOpcodes = map[byte]struct{}{
-	OP_RESERVED:     {}, // 80
-	OP_VER:          {}, // 98
-	OP_CAT:          {}, // 126
-	OP_SUBSTR:       {}, // 127
-	OP_LEFT:         {}, // 128
-	OP_RIGHT:        {}, // 129
-	OP_INVERT:       {}, // 131
-	OP_AND:          {}, // 132
-	OP_OR:           {}, // 133
-	OP_XOR:          {}, // 134
-	OP_RESERVED1:    {}, // 137
-	OP_RESERVED2:    {}, // 138
-	OP_2MUL:         {}, // 141
-	OP_2DIV:         {}, // 142
-	OP_MUL:          {}, // 149
-	OP_DIV:          {}, // 150
-	OP_MOD:          {}, // 151
-	OP_LSHIFT:       {}, // 152
-	OP_RSHIFT:       {}, // 153
-	OP_UNKNOWN187:   {}, // 187
+	OP_RESERVED:  {}, // 80
+	OP_VER:       {}, // 98
+	OP_CAT:       {}, // 126
+	OP_SUBSTR:    {}, // 127
+	OP_LEFT:      {}, // 128
+	OP_RIGHT:     {}, // 129
+	OP_INVERT:    {}, // 131
+	OP_AND:       {}, // 132
+	OP_OR:        {}, // 133
+	OP_XOR:       {}, // 134
+	OP_RESERVED1: {}, // 137
+	OP_RESERVED2: {}, // 138
+	OP_2MUL:      {}, // 141
+	OP_2DIV:      {}, // 142
+	OP_MUL:       {}, // 149
+	OP_DIV:       {}, // 150
+	OP_MOD:       {}, // 151
+	OP_LSHIFT:    {}, // 152
+	OP_RSHIFT:    {}, // 153
+	// OP_UNKNOWN187 => OP_CHECKCONTRACTVERIFY
 	OP_UNKNOWN188:   {}, // 188
 	OP_UNKNOWN189:   {}, // 189
 	OP_UNKNOWN190:   {}, // 190
@@ -1941,6 +1944,158 @@ func opcodeHash256(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	vm.dstack.PushByteArray(chainhash.DoubleHashB(buf))
+	return nil
+}
+
+var BIP341_NUMS_POINT = []byte{
+	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
+	0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
+}
+
+const (
+	// Check an input's script; no amount check.
+	CCV_MODE_CHECK_INPUT = -1
+
+	// Check an output's script; preserve the (possibly residual) amount.
+	CCV_MODE_CHECK_OUTPUT = 0
+
+	// Check an output's script; ignore amounts.
+	CCV_MODE_CHECK_OUTPUT_IGNORE_AMOUNT = 1
+
+	// Check an output's script; deduct the output amount from the input's
+	// residual amount.
+	CCV_MODE_CHECK_OUTPUT_DEDUCT_AMOUNT = 2
+)
+
+func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
+	flags, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	// Check mode flag flags, emulate success behavior if unknown.
+	switch flags {
+	case CCV_MODE_CHECK_INPUT:
+	case CCV_MODE_CHECK_OUTPUT:
+	case CCV_MODE_CHECK_OUTPUT_IGNORE_AMOUNT:
+	case CCV_MODE_CHECK_OUTPUT_DEDUCT_AMOUNT:
+
+	// Immediately pass the script.
+	default:
+		n := vm.dstack.Depth()
+		err := vm.dstack.DropN(n)
+		if err != nil {
+			return err
+		}
+
+		vm.dstack.PushBool(true)
+		return nil
+	}
+
+	taptree, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	keyBytes, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	index, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	data, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	// If taptree is -1, we use current input's root hash.
+	if len(taptree) == 1 && taptree[0] == 0x81 {
+		taptree = vm.taprootCtx.taprootHash
+	}
+
+	switch {
+
+	// If keybytes is -1, we use current input's internal key.
+	case len(keyBytes) == 1 && keyBytes[0] == 0x81:
+		keyBytes = schnorr.SerializePubKey(vm.taprootCtx.internalKey)
+
+	// If keybytes is minimally encoded 0, we use the nums point.
+	case len(keyBytes) == 0:
+		keyBytes = BIP341_NUMS_POINT
+	}
+
+	key, err := schnorr.ParsePubKey(keyBytes)
+	if err != nil {
+		return err
+	}
+
+	// If index is -1, we use current input's index.
+	if index == -1 {
+		index = scriptNum(vm.txIdx)
+	}
+
+	var scriptPubKey []byte
+
+	// TODO: validate index?
+	switch flags {
+	case CCV_MODE_CHECK_INPUT:
+		prevOut := vm.prevOutFetcher.FetchPrevOutput(
+			vm.tx.TxIn[index].PreviousOutPoint,
+		)
+		// TODO: check nil?
+		scriptPubKey = prevOut.PkScript
+
+	case CCV_MODE_CHECK_OUTPUT:
+		outputIdx := index.Int32()
+		scriptPubKey = vm.tx.TxOut[index].PkScript
+		vm.taprootCtx.inputAllocation[vm.txIdx] = append(
+			vm.taprootCtx.inputAllocation[vm.txIdx],
+			outputAmt{outputIdx, CCV_PRESERVE_AMOUNT},
+		)
+
+	case CCV_MODE_CHECK_OUTPUT_IGNORE_AMOUNT:
+		scriptPubKey = vm.tx.TxOut[index].PkScript
+
+	case CCV_MODE_CHECK_OUTPUT_DEDUCT_AMOUNT:
+		outputIdx := index.Int32()
+		scriptPubKey = vm.tx.TxOut[index].PkScript
+		vm.taprootCtx.inputAllocation[vm.txIdx] = append(
+			vm.taprootCtx.inputAllocation[vm.txIdx],
+			outputAmt{outputIdx, CCV_DEDUCT_AMOUNT},
+		)
+
+	default:
+		// not possible
+	}
+
+	tweaked := key
+	if len(data) != 0 {
+		// Tweak key with data.
+		tweaked = SingleTweakPubKey(key, data)
+	}
+
+	// Tweak again with taptree.
+	outputKey := tweaked
+	if len(taptree) != 0 {
+		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
+	}
+
+	a := scriptPubKey
+	b, err := PayToTaprootScript(outputKey)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(a, b) {
+		return fmt.Errorf("not tweaked: %x vs %x", a, b)
+	}
+
+	// TODO: deferred amount checks.
+
 	return nil
 }
 
