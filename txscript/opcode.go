@@ -2050,8 +2050,13 @@ func opcodeCheckinputcontract(op *opcode, data []byte, vm *Engine) error {
 }
 
 func opcodeCheckoutputcontract(op *opcode, data []byte, vm *Engine) error {
-	// Assume index 0 for now.
-	output := vm.tx.TxOut[0]
+	outIndex, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	// TODO: validate
+	output := vm.tx.TxOut[outIndex]
 
 	embedData, err := vm.dstack.PopByteArray()
 	if err != nil {
