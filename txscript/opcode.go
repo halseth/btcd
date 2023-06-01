@@ -2079,10 +2079,17 @@ func opcodeCheckoutputcontract(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	// Tweak key with data.
-	tweaked := ComputeTaprootOutputKey(key, embedData)
+	tweaked := key
+	if len(embedData) != 0 {
+		tweaked = ComputeTaprootOutputKey(key, embedData)
+	}
 
 	// Tweak again with taptree.
-	outputKey := ComputeTaprootOutputKey(tweaked, taptree)
+	emptyTree := []byte{}
+	outputKey := ComputeTaprootOutputKey(tweaked, emptyTree)
+	if len(taptree) != 0 {
+		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
+	}
 
 	a := output.PkScript
 	b, err := PayToTaprootScript(outputKey)
