@@ -2085,8 +2085,7 @@ func opcodeCheckoutputcontract(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	// Tweak again with taptree.
-	emptyTree := []byte{}
-	outputKey := ComputeTaprootOutputKey(tweaked, emptyTree)
+	outputKey := tweaked
 	if len(taptree) != 0 {
 		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
 	}
