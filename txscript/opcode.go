@@ -1910,7 +1910,10 @@ func opcodeSha256(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
+	//fmt.Println("sha256 of", hex.EncodeToString(buf))
+
 	hash := sha256.Sum256(buf)
+	//fmt.Println("sha256 result", hex.EncodeToString(hash[:]))
 	vm.dstack.PushByteArray(hash[:])
 	return nil
 }
@@ -1977,6 +1980,10 @@ func opcodeCat(op *opcode, data []byte, vm *Engine) error {
 			len(c), MaxScriptElementSize)
 		return scriptError(ErrElementTooBig, str)
 	}
+
+	//	fmt.Println("buf1", spew.Sdump(buf1))
+	//	fmt.Println("buf2", spew.Sdump(buf2))
+	//	fmt.Println("buf1+buf2", spew.Sdump(buf.Bytes()))
 
 	vm.dstack.PushByteArray(c)
 	return nil
@@ -2077,18 +2084,24 @@ func opcodeCheckoutputcontract(op *opcode, data []byte, vm *Engine) error {
 	if err != nil {
 		return err
 	}
-
 	// Tweak key with data.
 	tweaked := key
 	if len(embedData) != 0 {
 		tweaked = ComputeTaprootOutputKey(key, embedData)
 	}
 
+	fmt.Printf("key: %x\n", keyBytes)
+	fmt.Printf("tweak data: %x\n", embedData)
+	fmt.Printf("taptree: %x\n", taptree)
+
 	// Tweak again with taptree.
 	outputKey := tweaked
 	if len(taptree) != 0 {
 		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
 	}
+
+	fmt.Printf("outputkey: %x\n",
+		schnorr.SerializePubKey(outputKey))
 
 	a := output.PkScript
 	b, err := PayToTaprootScript(outputKey)
@@ -2097,6 +2110,7 @@ func opcodeCheckoutputcontract(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if !bytes.Equal(a, b) {
+		//fmt.Printf("not tweaked: %x vs %x\n", a, b)
 		return fmt.Errorf("not tweaked: %x vs %x", a, b)
 	}
 

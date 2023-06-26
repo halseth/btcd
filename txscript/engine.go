@@ -1143,6 +1143,7 @@ func (vm *Engine) Execute() (err error) {
 		}
 	}
 
+	// checks if 01 is on the stack
 	return vm.CheckErrorCondition(true)
 }
 
