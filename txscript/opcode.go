@@ -229,7 +229,7 @@ const (
 	OP_NOP9                = 0xb8 // 184
 	OP_NOP10               = 0xb9 // 185
 	OP_CHECKSIGADD         = 0xba // 186
-	OP_CHECKINPUTCONTRACT  = 0xbb // 187
+	OP_CHECKCONTRACTVERIFY = 0xbb // 187
 	OP_CHECKOUTPUTCONTRACT = 0xbc // 188
 	OP_CHECKTWEAK          = 0xbd // 189
 	OP_UNKNOWN190          = 0xbe // 190
@@ -515,7 +515,7 @@ var opcodeArray = [256]opcode{
 	OP_NOP10: {OP_NOP10, "OP_NOP10", 1, opcodeNop},
 
 	// Undefined opcodes.
-	OP_CHECKINPUTCONTRACT:  {OP_CHECKINPUTCONTRACT, "OP_CHECKINPUTCONTRACT", 1, opcodeCheckinputcontract},
+	OP_CHECKCONTRACTVERIFY: {OP_CHECKCONTRACTVERIFY, "OP_CHECKCONTRACTVERIFY", 1, opcodeCheckContractVerify},
 	OP_CHECKOUTPUTCONTRACT: {OP_CHECKOUTPUTCONTRACT, "OP_CHECKOUTPUTCONTRACT", 1, opcodeCheckoutputcontract},
 	OP_CHECKTWEAK:          {OP_CHECKTWEAK, "OP_CHECKTWEAK", 1, opcodeChecktweak},
 	OP_UNKNOWN190:          {OP_UNKNOWN190, "OP_UNKNOWN190", 1, opcodeInvalid},
@@ -636,7 +636,7 @@ var successOpcodes = map[byte]struct{}{
 	OP_MOD:       {}, // 151
 	OP_LSHIFT:    {}, // 152
 	OP_RSHIFT:    {}, // 153
-	//	OP_CHECKINPUTCONTRACT:  {}, // 187
+	//	OP_CHECKCONTRACTVERIFY:  {}, // 187
 	//	OP_CHECKOUTPUTCONTRACT: {}, // 188
 	//	OP_CHECKTWEAK:   {}, // 189
 	OP_UNKNOWN190:   {}, // 190
@@ -2023,8 +2023,34 @@ func opcodeChecktweak(op *opcode, data []byte, vm *Engine) error {
 
 	return nil
 }
-func opcodeCheckinputcontract(op *opcode, data []byte, vm *Engine) error {
-	embedData, err := vm.dstack.PopByteArray()
+
+var BIP341_NUMS_POINT = []byte{
+	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
+	0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
+}
+
+// Flag to mark an OP_CHECKCONTRACVERIFY as referring to an input.
+const CCV_FLAG_CHECK_INPUT = 1
+
+// Flag to specify that an OP_CHECKCONTRACVERIFY which refers to an output
+// does not check the output amount.
+const CCV_FLAG_IGNORE_OUTPUT_AMOUNT = 2
+
+func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
+
+	flags, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	// TODO: Check OP_success flags
+
+	index, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	data, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
 	}
@@ -2034,18 +2060,64 @@ func opcodeCheckinputcontract(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
+	taptree, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	// TODO: why 0x81?
+	if len(taptree) == 1 && taptree[0] == 0x81 {
+		taptree = vm.taprootCtx.taprootHash
+	}
+
+	if len(keyBytes) == 1 && keyBytes[0] == 0x81 {
+		keyBytes = schnorr.SerializePubKey(vm.taprootCtx.internalKey)
+	} else if len(keyBytes) == 0 {
+		keyBytes = BIP341_NUMS_POINT
+	}
+
+	if index == 0x81 {
+		index = scriptNum(vm.txIdx)
+	}
+
 	key, err := schnorr.ParsePubKey(keyBytes)
 	if err != nil {
 		return err
 	}
 
-	// Tweak key with data.
-	tweaked := ComputeTaprootOutputKey(key, embedData)
+	var scriptPubKey []byte
+	// TODO: validate index
+	if flags&CCV_FLAG_CHECK_INPUT != 0 {
+		prevOut := vm.prevOutFetcher.FetchPrevOutput(
+			vm.tx.TxIn[index].PreviousOutPoint,
+		)
+		// TODO: check nil
+		scriptPubKey = prevOut.PkScript
+	} else {
+		scriptPubKey = vm.tx.TxOut[index].PkScript
+	}
 
-	a := schnorr.SerializePubKey(tweaked)
-	b := schnorr.SerializePubKey(vm.taprootCtx.internalKey)
+	tweaked := key
+	if len(data) != 0 {
+		// Tweak key with data.
+		// TODO: use non-tagged hash
+		tweaked = ComputeTaprootOutputKey(key, data)
+	}
+
+	// Tweak again with taptree.
+	outputKey := tweaked
+	if len(taptree) != 0 {
+		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
+	}
+
+	a := scriptPubKey
+	b, err := PayToTaprootScript(outputKey)
+	if err != nil {
+		return err
+	}
 
 	if !bytes.Equal(a, b) {
+		//fmt.Printf("not tweaked: %x vs %x\n", a, b)
 		return fmt.Errorf("not tweaked: %x vs %x", a, b)
 	}
 
