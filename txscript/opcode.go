@@ -230,8 +230,8 @@ const (
 	OP_NOP10               = 0xb9 // 185
 	OP_CHECKSIGADD         = 0xba // 186
 	OP_CHECKCONTRACTVERIFY = 0xbb // 187
-	OP_CHECKOUTPUTCONTRACT = 0xbc // 188
-	OP_CHECKTWEAK          = 0xbd // 189
+	OP_UNKNOWN188          = 0xbc // 188
+	OP_UNKNOWN189          = 0xbd // 189
 	OP_UNKNOWN190          = 0xbe // 190
 	OP_UNKNOWN191          = 0xbf // 191
 	OP_UNKNOWN192          = 0xc0 // 192
@@ -516,8 +516,8 @@ var opcodeArray = [256]opcode{
 
 	// Undefined opcodes.
 	OP_CHECKCONTRACTVERIFY: {OP_CHECKCONTRACTVERIFY, "OP_CHECKCONTRACTVERIFY", 1, opcodeCheckContractVerify},
-	OP_CHECKOUTPUTCONTRACT: {OP_CHECKOUTPUTCONTRACT, "OP_CHECKOUTPUTCONTRACT", 1, opcodeCheckoutputcontract},
-	OP_CHECKTWEAK:          {OP_CHECKTWEAK, "OP_CHECKTWEAK", 1, opcodeChecktweak},
+	OP_UNKNOWN188:          {OP_UNKNOWN188, "OP_UNKNOWN188", 1, opcodeInvalid},
+	OP_UNKNOWN189:          {OP_UNKNOWN189, "OP_UNKNOWN189", 1, opcodeInvalid},
 	OP_UNKNOWN190:          {OP_UNKNOWN190, "OP_UNKNOWN190", 1, opcodeInvalid},
 	OP_UNKNOWN191:          {OP_UNKNOWN191, "OP_UNKNOWN191", 1, opcodeInvalid},
 	OP_UNKNOWN192:          {OP_UNKNOWN192, "OP_UNKNOWN192", 1, opcodeInvalid},
@@ -1985,45 +1985,6 @@ func opcodeCat(op *opcode, data []byte, vm *Engine) error {
 	return nil
 }
 
-func opcodeChecktweak(op *opcode, data []byte, vm *Engine) error {
-	embedData, err := vm.dstack.PopByteArray()
-	if err != nil {
-		return err
-	}
-
-	keyBytes, err := vm.dstack.PopByteArray()
-	if err != nil {
-		return err
-	}
-
-	key, err := schnorr.ParsePubKey(keyBytes)
-	if err != nil {
-		return err
-	}
-
-	key2Bytes, err := vm.dstack.PopByteArray()
-	if err != nil {
-		return err
-	}
-
-	key2, err := schnorr.ParsePubKey(key2Bytes)
-	if err != nil {
-		return err
-	}
-
-	// Tweak key with data.
-	tweaked := ComputeTaprootOutputKey(key, embedData)
-
-	a := schnorr.SerializePubKey(tweaked)
-	b := schnorr.SerializePubKey(key2)
-
-	if !bytes.Equal(a, b) {
-		return fmt.Errorf("not tweaked: %x vs %x", a, b)
-	}
-
-	return nil
-}
-
 var BIP341_NUMS_POINT = []byte{
 	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
 	0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
@@ -2065,7 +2026,7 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 		return err
 	}
 
-	// TODO: why 0x81?
+	// TODO: why 0x81? Because it has the sign bit set
 	if len(taptree) == 1 && taptree[0] == 0x81 {
 		taptree = vm.taprootCtx.taprootHash
 	}
@@ -2076,8 +2037,15 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 		keyBytes = BIP341_NUMS_POINT
 	}
 
-	if index == 0x81 {
+	//fmt.Println("index is", index)
+	prev := index
+	if index == -1 {
 		index = scriptNum(vm.txIdx)
+		//fmt.Println("changing index to", index)
+	}
+
+	if prev == -1 {
+		//	panic(fmt.Sprintf("index was %d now is %d", prev, index))
 	}
 
 	key, err := schnorr.ParsePubKey(keyBytes)
@@ -2086,6 +2054,7 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 	}
 
 	var scriptPubKey []byte
+	//fmt.Printf("flags: %x\n", flags)
 	// TODO: validate index
 	if flags&CCV_FLAG_CHECK_INPUT != 0 {
 		prevOut := vm.prevOutFetcher.FetchPrevOutput(
@@ -2093,8 +2062,10 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 		)
 		// TODO: check nil
 		scriptPubKey = prevOut.PkScript
+		//fmt.Printf("input flag. script: %x\n", scriptPubKey)
 	} else {
 		scriptPubKey = vm.tx.TxOut[index].PkScript
+		//fmt.Printf("output flag. script: %x\n", scriptPubKey)
 	}
 
 	tweaked := key
@@ -2116,71 +2087,16 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 		return err
 	}
 
-	if !bytes.Equal(a, b) {
-		//fmt.Printf("not tweaked: %x vs %x\n", a, b)
-		return fmt.Errorf("not tweaked: %x vs %x", a, b)
-	}
-
-	return nil
-}
-
-func opcodeCheckoutputcontract(op *opcode, data []byte, vm *Engine) error {
-	outIndex, err := vm.dstack.PopInt()
-	if err != nil {
-		return err
-	}
-
-	// TODO: validate
-	output := vm.tx.TxOut[outIndex]
-
-	embedData, err := vm.dstack.PopByteArray()
-	if err != nil {
-		return err
-	}
-
-	taptree, err := vm.dstack.PopByteArray()
-	if err != nil {
-		return err
-	}
-
-	keyBytes, err := vm.dstack.PopByteArray()
-	if err != nil {
-		return err
-	}
-
-	key, err := schnorr.ParsePubKey(keyBytes)
-	if err != nil {
-		return err
-	}
-	// Tweak key with data.
-	tweaked := key
-	if len(embedData) != 0 {
-		tweaked = ComputeTaprootOutputKey(key, embedData)
-	}
-
-	fmt.Printf("key: %x\n", keyBytes)
-	fmt.Printf("tweak data: %x\n", embedData)
-	fmt.Printf("taptree: %x\n", taptree)
-
-	// Tweak again with taptree.
-	outputKey := tweaked
-	if len(taptree) != 0 {
-		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
-	}
-
-	fmt.Printf("outputkey: %x\n",
-		schnorr.SerializePubKey(outputKey))
-
-	a := output.PkScript
-	b, err := PayToTaprootScript(outputKey)
-	if err != nil {
-		return err
-	}
+	//fmt.Printf("key: %x\n", keyBytes)
+	//fmt.Printf("tweak data: %x\n", data)
+	//fmt.Printf("taptree: %x\n", taptree)
 
 	if !bytes.Equal(a, b) {
 		//fmt.Printf("not tweaked: %x vs %x\n", a, b)
 		return fmt.Errorf("not tweaked: %x vs %x", a, b)
 	}
+
+	// TODO: deferred amount checks.
 
 	return nil
 }
