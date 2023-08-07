@@ -2066,6 +2066,18 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 	} else {
 		scriptPubKey = vm.tx.TxOut[index].PkScript
 		//fmt.Printf("output flag. script: %x\n", scriptPubKey)
+
+		// If checking output, also add the output amount if not
+		// disabled.
+		if flags&CCV_FLAG_IGNORE_OUTPUT_AMOUNT == 0 {
+			prevOut := vm.prevOutFetcher.FetchPrevOutput(
+				vm.tx.TxIn[vm.txIdx].PreviousOutPoint,
+			)
+			vm.taprootCtx.deferredAmounts[index] = append(
+				vm.taprootCtx.deferredAmounts[index],
+				inputAmt{vm.txIdx, prevOut.Value},
+			)
+		}
 	}
 
 	tweaked := key
