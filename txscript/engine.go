@@ -1133,6 +1133,7 @@ func (vm *Engine) Execute() (err error) {
 
 		done, err = vm.Step()
 		if err != nil {
+			log.Infof("step failed: %s\n", err)
 			return err
 		}
 		log.Tracef("%v", newLogClosure(func() string {
@@ -1176,7 +1177,13 @@ func (vm *Engine) Execute() (err error) {
 	}
 
 	// checks if 01 is on the stack
-	return vm.CheckErrorCondition(true)
+	err = vm.CheckErrorCondition(true)
+	if err != nil {
+		log.Infof("check error failed: %s\n", err)
+		return err
+	}
+
+	return nil
 }
 
 // subScript returns the script since the last OP_CODESEPARATOR.

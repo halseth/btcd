@@ -2037,6 +2037,7 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 
 	if len(keyBytes) == 1 && keyBytes[0] == 0x81 {
 		keyBytes = schnorr.SerializePubKey(vm.taprootCtx.internalKey)
+		fmt.Printf("using taproot ctx key %x\n", keyBytes)
 	} else if len(keyBytes) == 0 {
 		keyBytes = BIP341_NUMS_POINT
 	}
@@ -2085,15 +2086,18 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 	}
 
 	tweaked := key
+	fmt.Printf("key is %x\n", schnorr.SerializePubKey(tweaked))
 	if len(data) != 0 {
 		// Tweak key with data.
 		tweaked = SingleTweakPubKey(key, data)
+		fmt.Printf("tweaking with data %x => %x\n", data, schnorr.SerializePubKey(tweaked))
 	}
 
 	// Tweak again with taptree.
 	outputKey := tweaked
 	if len(taptree) != 0 {
 		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
+		fmt.Printf("tweaking with taptree %x => %x\n", taptree, schnorr.SerializePubKey(outputKey))
 	}
 
 	a := scriptPubKey
