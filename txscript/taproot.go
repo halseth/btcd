@@ -255,16 +255,20 @@ func ComputeTaprootOutputKey(pubKey *btcec.PublicKey,
 		scriptRoot,
 	)
 
-	// With the tap tweak computed,  we'll need to convert the merkle root
+	return tweakPublicKey(internalKey, tapTweakHash)
+}
+
+func tweakPublicKey(pub *btcec.PublicKey, tweak *chainhash.Hash) *btcec.PublicKey {
+	// With the tap tweek computed,  we'll need to convert the merkle root
 	// into something in the domain we can manipulate: a scalar value mod
 	// N.
 	var tweakScalar btcec.ModNScalar
-	tweakScalar.SetBytes((*[32]byte)(tapTweakHash))
+	tweakScalar.SetBytes((*[32]byte)(tweak))
 
 	// Next, we'll need to convert the internal key to jacobian coordinates
 	// as the routines we need only operate on this type.
 	var internalPoint btcec.JacobianPoint
-	internalKey.AsJacobian(&internalPoint)
+	pub.AsJacobian(&internalPoint)
 
 	// With our intermediate data obtained, we'll now compute:
 	//
@@ -299,6 +303,21 @@ func ComputeTaprootKeyNoScript(internalKey *btcec.PublicKey) *btcec.PublicKey {
 func TweakTaprootPrivKey(privKey btcec.PrivateKey,
 	scriptRoot []byte) *btcec.PrivateKey {
 
+	// Next, we'll compute the tap tweak hash that commits to the internal
+	// key and the merkle script root. We'll snip off the extra parity byte
+	// from the compressed serialization and use that directly.
+	pubKeyBytes := privKey.PubKey().SerializeCompressed()
+	schnorrKeyBytes := pubKeyBytes[1:]
+	tapTweakHash := chainhash.TaggedHash(
+		chainhash.TagTapTweak, schnorrKeyBytes, scriptRoot,
+	)
+
+	return tweakPrivKey(privKey, tapTweakHash)
+}
+
+func tweakPrivKey(privKey btcec.PrivateKey,
+	tweak *chainhash.Hash) *btcec.PrivateKey {
+
 	// If the corresponding public key has an odd y coordinate, then we'll
 	// negate the private key as specified in BIP 341.
 	privKeyScalar := privKey.Key
@@ -307,18 +326,10 @@ func TweakTaprootPrivKey(privKey btcec.PrivateKey,
 		privKeyScalar.Negate()
 	}
 
-	// Next, we'll compute the tap tweak hash that commits to the internal
-	// key and the merkle script root. We'll snip off the extra parity byte
-	// from the compressed serialization and use that directly.
-	schnorrKeyBytes := pubKeyBytes[1:]
-	tapTweakHash := chainhash.TaggedHash(
-		chainhash.TagTapTweak, schnorrKeyBytes, scriptRoot,
-	)
-
 	// Map the private key to a ModNScalar which is needed to perform
 	// operation mod the curve order.
 	var tweakScalar btcec.ModNScalar
-	tweakScalar.SetBytes((*[32]byte)(tapTweakHash))
+	tweakScalar.SetBytes((*[32]byte)(tweak))
 
 	// Now that we have the private key in its may negated form, we'll add
 	// the script root as a tweak. As we're using a ModNScalar all
