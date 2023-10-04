@@ -2083,8 +2083,7 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 	tweaked := key
 	if len(data) != 0 {
 		// Tweak key with data.
-		// TODO: use non-tagged hash
-		tweaked = ComputeTaprootOutputKey(key, data)
+		tweaked = SingleTweakPubKey(key, data)
 	}
 
 	// Tweak again with taptree.
