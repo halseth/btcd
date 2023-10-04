@@ -2006,12 +2006,7 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 
 	// TODO: Check OP_success flags
 
-	index, err := vm.dstack.PopInt()
-	if err != nil {
-		return err
-	}
-
-	data, err := vm.dstack.PopByteArray()
+	taptree, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
 	}
@@ -2021,7 +2016,12 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 		return err
 	}
 
-	taptree, err := vm.dstack.PopByteArray()
+	index, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	data, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
 	}
