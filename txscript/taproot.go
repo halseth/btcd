@@ -6,6 +6,7 @@ package txscript
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -236,6 +237,43 @@ func ParseControlBlock(ctrlBlock []byte) (*ControlBlock, error) {
 		LeafVersion:     leafVersion,
 		InclusionProof:  proofBytes,
 	}, nil
+}
+
+func SingleTweakPubKey(pubKey *btcec.PublicKey,
+	data []byte) *btcec.PublicKey {
+
+	// This routine only operates on x-only public keys where the public
+	// key always has an even y coordinate, so we'll re-parse it as such.
+	internalKey, _ := schnorr.ParsePubKey(schnorr.SerializePubKey(pubKey))
+
+	h := sha256.New()
+	h.Write(data[:])
+	// TODO: reference impl might not be adding pubkey here.
+	h.Write(schnorr.SerializePubKey(internalKey))
+
+	tweak := h.Sum(nil)
+	hash, _ := chainhash.NewHash(tweak)
+
+	return tweakPublicKey(internalKey, hash)
+}
+
+func SingleTweakPrivKey(privKey btcec.PrivateKey,
+	data []byte) *btcec.PrivateKey {
+
+	// Next, we'll compute the tap tweak hash that commits to the internal
+	// key and the merkle script root. We'll snip off the extra parity byte
+	// from the compressed serialization and use that directly.
+	pubKey := privKey.PubKey()
+
+	h := sha256.New()
+	h.Write(data[:])
+	// TODO: reference impl might not be adding pubkey here.
+	h.Write(schnorr.SerializePubKey(pubKey))
+
+	tweak := h.Sum(nil)
+	hash, _ := chainhash.NewHash(tweak)
+
+	return tweakPrivKey(privKey, hash)
 }
 
 // ComputeTaprootOutputKey calculates a top-level taproot output key given an
