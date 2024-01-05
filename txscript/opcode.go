@@ -2106,9 +2106,9 @@ func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
 		return err
 	}
 
-	//fmt.Printf("key: %x\n", keyBytes)
-	//fmt.Printf("tweak data: %x\n", data)
-	//fmt.Printf("taptree: %x\n", taptree)
+	fmt.Printf("key: %x\n", keyBytes)
+	fmt.Printf("tweak data: %x\n", data)
+	fmt.Printf("taptree: %x\n", taptree)
 
 	if !bytes.Equal(a, b) {
 		//fmt.Printf("not tweaked: %x vs %x\n", a, b)

@@ -388,6 +388,8 @@ func VerifyTaprootLeafCommitment(controlBlock *ControlBlock,
 	// First, we'll calculate the root hash from the given proof and
 	// revealed script.
 	rootHash := controlBlock.RootHash(revealedScript)
+	fmt.Printf("control block revealed script %x\n", revealedScript)
+	fmt.Printf("control block root hash %x\n", rootHash)
 
 	// Next, we'll construct the final commitment (creating the external or
 	// taproot output key) as a function of this commitment and the
@@ -395,6 +397,8 @@ func VerifyTaprootLeafCommitment(controlBlock *ControlBlock,
 	taprootKey := ComputeTaprootOutputKey(
 		controlBlock.InternalKey, rootHash,
 	)
+	fmt.Printf("control block internal key: %x\n", schnorr.SerializePubKey(controlBlock.InternalKey))
+	fmt.Printf("control block taproot key: %x\n", schnorr.SerializePubKey(taprootKey))
 
 	// If we convert the taproot key to a witness program (we just need to
 	// serialize the public key), then it should exactly match the witness
@@ -571,6 +575,7 @@ func (t *TapscriptProof) ToControlBlock(internalKey *btcec.PublicKey) ControlBlo
 	taprootKey := ComputeTaprootOutputKey(
 		internalKey, rootHash[:],
 	)
+	fmt.Printf("controlblock: tap root: %x\n", rootHash[:])
 
 	// With the commitment computed we can obtain the bit that denotes if
 	// the resulting key has an odd y coordinate or not.
