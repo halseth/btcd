@@ -273,8 +273,8 @@ func (c *Context) combineSignerKeys() error {
 	// Now that we know that we're actually a signer, we'll
 	// generate the key hash finger print and second unique key
 	// index so we can speed up signing later.
-	c.keysHash = keyHashFingerprint(c.opts.keySet, c.shouldSort)
-	c.uniqueKeyIndex = secondUniqueKeyIndex(
+	c.keysHash = KeyHashFingerprint(c.opts.keySet, c.shouldSort)
+	c.uniqueKeyIndex = SecondUniqueKeyIndex(
 		c.opts.keySet, c.shouldSort,
 	)
 
@@ -445,6 +445,10 @@ type Session struct {
 	finalSig *schnorr.Signature
 }
 
+func (s *Session) Nonces() *Nonces {
+	return s.localNonces
+}
+
 // NewSession creates a new musig2 signing session.
 func (c *Context) NewSession(options ...SessionOption) (*Session, error) {
 	opts := defaultSessionOptions()
@@ -551,7 +555,7 @@ func (s *Session) RegisterPubNonce(nonce [PubNonceSize]byte) (bool, error) {
 // Sign generates a partial signature for the target message, using the target
 // context. If this method is called more than once per context, then an error
 // is returned, as that means a nonce was re-used.
-func (s *Session) Sign(msg [32]byte,
+func (s *Session) Sign(msg, c [32]byte,
 	signOpts ...SignOption) (*PartialSignature, error) {
 
 	switch {
@@ -560,10 +564,10 @@ func (s *Session) Sign(msg [32]byte,
 	case s.localNonces == nil:
 		return nil, ErrSigningContextReuse
 
-	// We also need to make sure we have the combined nonce, otherwise this
-	// function was called too early.
-	case s.combinedNonce == nil:
-		return nil, ErrCombinedNonceUnavailable
+		// We also need to make sure we have the combined nonce, otherwise this
+		// function was called too early.
+		//	case s.combinedNonce == nil:
+		//		return nil, ErrCombinedNonceUnavailable
 	}
 
 	switch {
@@ -580,7 +584,7 @@ func (s *Session) Sign(msg [32]byte,
 	}
 
 	partialSig, err := Sign(
-		s.localNonces.SecNonce, s.ctx.signingKey, *s.combinedNonce,
+		s.localNonces.SecNonce, c, s.ctx.signingKey, //*s.combinedNonce,
 		s.ctx.opts.keySet, msg, signOpts...,
 	)
 

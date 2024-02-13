@@ -7,6 +7,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/davecgh/go-spew/spew"
 	secp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ecdsa_schnorr "github.com/decred/dcrd/dcrec/secp256k1/v4/schnorr"
 )
@@ -299,13 +300,17 @@ func schnorrSign(privKey, nonce *btcec.ModNScalar, pubKey *btcec.PublicKey, hash
 		k.Negate()
 	}
 
+	fmt.Printf("schnorr k=%v -> R=%x\n", k, R.X.Bytes())
+
 	// Step 12.
 	//
 	// e = tagged_hash("BIP0340/challenge", bytes(R) || bytes(P) || m) mod n
 	pBytes := SerializePubKey(pubKey)
 	commitment := chainhash.TaggedHash(
-		chainhash.TagBIP0340Challenge, R.X.Bytes()[:], pBytes, hash,
+		chainhash.TagBIP0340Challenge,
+		R.X.Bytes()[:], pBytes, hash,
 	)
+	fmt.Printf("schnorr created commitment R=%x P=%x H=%x\n", R.X.Bytes()[:], pBytes, hash)
 
 	var e btcec.ModNScalar
 	if overflow := e.SetBytes((*[32]byte)(commitment)); overflow != 0 {
@@ -317,10 +322,12 @@ func schnorrSign(privKey, nonce *btcec.ModNScalar, pubKey *btcec.PublicKey, hash
 	// Step 13.
 	//
 	// s = k + e*d mod n
+	fmt.Printf("scnrorr signing with nonce=%v e=%v priv=%v\n", k, e, privKey)
 	s := new(btcec.ModNScalar).Mul2(&e, privKey).Add(&k)
-	k.Zero()
 
+	k.Zero()
 	sig := NewSignature(&R.X, s)
+	fmt.Println("schnorr sig: %s", spew.Sdump(sig))
 
 	// Step 14.
 	//
@@ -468,6 +475,7 @@ func Sign(privKey *btcec.PrivateKey, hash []byte,
 	// and if so, then we'll deviate from the main routine here by
 	// generating the nonce value as specified by BIP-0340.
 	if opts.authNonce != nil {
+		fmt.Printf("schnorr found custom nonce %x\n", opts.authNonce)
 		// Step 6.
 		//
 		// t = bytes(d) xor tagged_hash("BIP0340/aux", a)
@@ -485,15 +493,17 @@ func Sign(privKey *btcec.PrivateKey, hash []byte,
 		//
 		// We snip off the first byte of the serialized pubkey, as we
 		// only need the x coordinate and not the market byte.
-		rand := chainhash.TaggedHash(
-			chainhash.TagBIP0340Nonce, t[:], pubKeyBytes[1:], hash,
-		)
+		//rand := chainhash.TaggedHash(
+		//	chainhash.TagBIP0340Nonce, t[:], pubKeyBytes[1:], hash,
+		//)
 
 		// Step 8.
 		//
 		// k'= int(rand) mod n
 		var kPrime btcec.ModNScalar
-		kPrime.SetBytes((*[32]byte)(rand))
+		kPrime.SetBytes((*[32]byte)(opts.authNonce))
+
+		fmt.Printf("kPrime=%v\n", kPrime)
 
 		// Step 9.
 		//

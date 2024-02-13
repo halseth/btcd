@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -85,6 +86,8 @@ func secNonceToPubNonce(secNonce [SecNonceSize]byte) [PubNonceSize]byte {
 		pubNonce[btcec.PubKeyBytesLenCompressed:],
 		r2Pub.SerializeCompressed(),
 	)
+
+	fmt.Printf("musig k=%v -> R=%x\n", k1Mod, r1Pub.SerializeCompressed())
 
 	return pubNonce
 }
@@ -353,17 +356,13 @@ func GenNonces(options ...NonceGenOption) (*Nonces, error) {
 
 	// Using our randomness, pubkey and the set of optional params, generate our
 	// two secret nonces: k1 and k2.
-	k1, err := genNonceAuxBytes(randBytes[:], opts.publicKey, 0, opts)
-	if err != nil {
-		return nil, err
-	}
 	k2, err := genNonceAuxBytes(randBytes[:], opts.publicKey, 1, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	var k1Mod, k2Mod btcec.ModNScalar
-	k1Mod.SetBytes((*[32]byte)(k1))
+	k1Mod.SetBytes(&randBytes)
 	k2Mod.SetBytes((*[32]byte)(k2))
 
 	// The secret nonces are serialized as the concatenation of the two 32
