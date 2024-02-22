@@ -6,6 +6,7 @@ package txscript
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -238,6 +239,43 @@ func ParseControlBlock(ctrlBlock []byte) (*ControlBlock, error) {
 	}, nil
 }
 
+func SingleTweakPubKey(pubKey *btcec.PublicKey,
+	data []byte) *btcec.PublicKey {
+
+	// This routine only operates on x-only public keys where the public
+	// key always has an even y coordinate, so we'll re-parse it as such.
+	internalKey, _ := schnorr.ParsePubKey(schnorr.SerializePubKey(pubKey))
+
+	h := sha256.New()
+	h.Write(data[:])
+	// TODO: reference impl might not be adding pubkey here.
+	h.Write(schnorr.SerializePubKey(internalKey))
+
+	tweak := h.Sum(nil)
+	hash, _ := chainhash.NewHash(tweak)
+
+	return tweakPublicKey(internalKey, hash)
+}
+
+func SingleTweakPrivKey(privKey btcec.PrivateKey,
+	data []byte) *btcec.PrivateKey {
+
+	// Next, we'll compute the tap tweak hash that commits to the internal
+	// key and the merkle script root. We'll snip off the extra parity byte
+	// from the compressed serialization and use that directly.
+	pubKey := privKey.PubKey()
+
+	h := sha256.New()
+	h.Write(data[:])
+	// TODO: reference impl might not be adding pubkey here.
+	h.Write(schnorr.SerializePubKey(pubKey))
+
+	tweak := h.Sum(nil)
+	hash, _ := chainhash.NewHash(tweak)
+
+	return tweakPrivKey(privKey, hash)
+}
+
 // ComputeTaprootOutputKey calculates a top-level taproot output key given an
 // internal key, and tapscript merkle root. The final key is derived as:
 // taprootKey = internalKey + (h_tapTweak(internalKey || merkleRoot)*G).
@@ -255,16 +293,20 @@ func ComputeTaprootOutputKey(pubKey *btcec.PublicKey,
 		scriptRoot,
 	)
 
+	return tweakPublicKey(internalKey, tapTweakHash)
+}
+
+func tweakPublicKey(pub *btcec.PublicKey, tweak *chainhash.Hash) *btcec.PublicKey {
 	// With the tap tweek computed,  we'll need to convert the merkle root
 	// into something in the domain we can manipulate: a scalar value mod
 	// N.
 	var tweakScalar btcec.ModNScalar
-	tweakScalar.SetBytes((*[32]byte)(tapTweakHash))
+	tweakScalar.SetBytes((*[32]byte)(tweak))
 
 	// Next, we'll need to convert the internal key to jacobian coordinates
 	// as the routines we need only operate on this type.
 	var internalPoint btcec.JacobianPoint
-	internalKey.AsJacobian(&internalPoint)
+	pub.AsJacobian(&internalPoint)
 
 	// With our intermediate data obtained, we'll now compute:
 	//
@@ -299,6 +341,21 @@ func ComputeTaprootKeyNoScript(internalKey *btcec.PublicKey) *btcec.PublicKey {
 func TweakTaprootPrivKey(privKey btcec.PrivateKey,
 	scriptRoot []byte) *btcec.PrivateKey {
 
+	// Next, we'll compute the tap tweak hash that commits to the internal
+	// key and the merkle script root. We'll snip off the extra parity byte
+	// from the compressed serialization and use that directly.
+	pubKeyBytes := privKey.PubKey().SerializeCompressed()
+	schnorrKeyBytes := pubKeyBytes[1:]
+	tapTweakHash := chainhash.TaggedHash(
+		chainhash.TagTapTweak, schnorrKeyBytes, scriptRoot,
+	)
+
+	return tweakPrivKey(privKey, tapTweakHash)
+}
+
+func tweakPrivKey(privKey btcec.PrivateKey,
+	tweak *chainhash.Hash) *btcec.PrivateKey {
+
 	// If the corresponding public key has an odd y coordinate, then we'll
 	// negate the private key as specified in BIP 341.
 	privKeyScalar := privKey.Key
@@ -307,18 +364,10 @@ func TweakTaprootPrivKey(privKey btcec.PrivateKey,
 		privKeyScalar.Negate()
 	}
 
-	// Next, we'll compute the tap tweak hash that commits to the internal
-	// key and the merkle script root. We'll snip off the extra parity byte
-	// from the compressed serialization and use that directly.
-	schnorrKeyBytes := pubKeyBytes[1:]
-	tapTweakHash := chainhash.TaggedHash(
-		chainhash.TagTapTweak, schnorrKeyBytes, scriptRoot,
-	)
-
 	// Map the private key to a ModNScalar which is needed to perform
 	// operation mod the curve order.
 	var tweakScalar btcec.ModNScalar
-	tweakScalar.SetBytes((*[32]byte)(tapTweakHash))
+	tweakScalar.SetBytes((*[32]byte)(tweak))
 
 	// Now that we have the private key in its may negated form, we'll add
 	// the script root as a tweak. As we're using a ModNScalar all
@@ -339,6 +388,8 @@ func VerifyTaprootLeafCommitment(controlBlock *ControlBlock,
 	// First, we'll calculate the root hash from the given proof and
 	// revealed script.
 	rootHash := controlBlock.RootHash(revealedScript)
+	fmt.Printf("control block revealed script %x\n", revealedScript)
+	fmt.Printf("control block root hash %x\n", rootHash)
 
 	// Next, we'll construct the final commitment (creating the external or
 	// taproot output key) as a function of this commitment and the
@@ -346,6 +397,8 @@ func VerifyTaprootLeafCommitment(controlBlock *ControlBlock,
 	taprootKey := ComputeTaprootOutputKey(
 		controlBlock.InternalKey, rootHash,
 	)
+	fmt.Printf("control block internal key: %x\n", schnorr.SerializePubKey(controlBlock.InternalKey))
+	fmt.Printf("control block taproot key: %x\n", schnorr.SerializePubKey(taprootKey))
 
 	// If we convert the taproot key to a witness program (we just need to
 	// serialize the public key), then it should exactly match the witness
@@ -522,6 +575,7 @@ func (t *TapscriptProof) ToControlBlock(internalKey *btcec.PublicKey) ControlBlo
 	taprootKey := ComputeTaprootOutputKey(
 		internalKey, rootHash[:],
 	)
+	fmt.Printf("controlblock: tap root: %x\n", rootHash[:])
 
 	// With the commitment computed we can obtain the bit that denotes if
 	// the resulting key has an odd y coordinate or not.

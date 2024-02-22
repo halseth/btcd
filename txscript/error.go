@@ -522,7 +522,7 @@ type Error struct {
 
 // Error satisfies the error interface and prints human-readable errors.
 func (e Error) Error() string {
-	return e.Description
+	return fmt.Sprintf("%v: %v", e.ErrorCode, e.Description)
 }
 
 // scriptError creates an Error given a set of arguments.
