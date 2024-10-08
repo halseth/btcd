@@ -18,6 +18,7 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
 )
@@ -228,7 +229,7 @@ const (
 	OP_NOP9                = 0xb8 // 184
 	OP_NOP10               = 0xb9 // 185
 	OP_CHECKSIGADD         = 0xba // 186
-	OP_UNKNOWN187          = 0xbb // 187
+	OP_CHECKCONTRACTVERIFY = 0xbb // 187
 	OP_UNKNOWN188          = 0xbc // 188
 	OP_UNKNOWN189          = 0xbd // 189
 	OP_UNKNOWN190          = 0xbe // 190
@@ -445,7 +446,7 @@ var opcodeArray = [256]opcode{
 	OP_TUCK:         {OP_TUCK, "OP_TUCK", 1, opcodeTuck},
 
 	// Splice opcodes.
-	OP_CAT:    {OP_CAT, "OP_CAT", 1, opcodeDisabled},
+	OP_CAT:    {OP_CAT, "OP_CAT", 1, opcodeCat},
 	OP_SUBSTR: {OP_SUBSTR, "OP_SUBSTR", 1, opcodeDisabled},
 	OP_LEFT:   {OP_LEFT, "OP_LEFT", 1, opcodeDisabled},
 	OP_RIGHT:  {OP_RIGHT, "OP_RIGHT", 1, opcodeDisabled},
@@ -514,69 +515,69 @@ var opcodeArray = [256]opcode{
 	OP_NOP10: {OP_NOP10, "OP_NOP10", 1, opcodeNop},
 
 	// Undefined opcodes.
-	OP_UNKNOWN187: {OP_UNKNOWN187, "OP_UNKNOWN187", 1, opcodeInvalid},
-	OP_UNKNOWN188: {OP_UNKNOWN188, "OP_UNKNOWN188", 1, opcodeInvalid},
-	OP_UNKNOWN189: {OP_UNKNOWN189, "OP_UNKNOWN189", 1, opcodeInvalid},
-	OP_UNKNOWN190: {OP_UNKNOWN190, "OP_UNKNOWN190", 1, opcodeInvalid},
-	OP_UNKNOWN191: {OP_UNKNOWN191, "OP_UNKNOWN191", 1, opcodeInvalid},
-	OP_UNKNOWN192: {OP_UNKNOWN192, "OP_UNKNOWN192", 1, opcodeInvalid},
-	OP_UNKNOWN193: {OP_UNKNOWN193, "OP_UNKNOWN193", 1, opcodeInvalid},
-	OP_UNKNOWN194: {OP_UNKNOWN194, "OP_UNKNOWN194", 1, opcodeInvalid},
-	OP_UNKNOWN195: {OP_UNKNOWN195, "OP_UNKNOWN195", 1, opcodeInvalid},
-	OP_UNKNOWN196: {OP_UNKNOWN196, "OP_UNKNOWN196", 1, opcodeInvalid},
-	OP_UNKNOWN197: {OP_UNKNOWN197, "OP_UNKNOWN197", 1, opcodeInvalid},
-	OP_UNKNOWN198: {OP_UNKNOWN198, "OP_UNKNOWN198", 1, opcodeInvalid},
-	OP_UNKNOWN199: {OP_UNKNOWN199, "OP_UNKNOWN199", 1, opcodeInvalid},
-	OP_UNKNOWN200: {OP_UNKNOWN200, "OP_UNKNOWN200", 1, opcodeInvalid},
-	OP_UNKNOWN201: {OP_UNKNOWN201, "OP_UNKNOWN201", 1, opcodeInvalid},
-	OP_UNKNOWN202: {OP_UNKNOWN202, "OP_UNKNOWN202", 1, opcodeInvalid},
-	OP_UNKNOWN203: {OP_UNKNOWN203, "OP_UNKNOWN203", 1, opcodeInvalid},
-	OP_UNKNOWN204: {OP_UNKNOWN204, "OP_UNKNOWN204", 1, opcodeInvalid},
-	OP_UNKNOWN205: {OP_UNKNOWN205, "OP_UNKNOWN205", 1, opcodeInvalid},
-	OP_UNKNOWN206: {OP_UNKNOWN206, "OP_UNKNOWN206", 1, opcodeInvalid},
-	OP_UNKNOWN207: {OP_UNKNOWN207, "OP_UNKNOWN207", 1, opcodeInvalid},
-	OP_UNKNOWN208: {OP_UNKNOWN208, "OP_UNKNOWN208", 1, opcodeInvalid},
-	OP_UNKNOWN209: {OP_UNKNOWN209, "OP_UNKNOWN209", 1, opcodeInvalid},
-	OP_UNKNOWN210: {OP_UNKNOWN210, "OP_UNKNOWN210", 1, opcodeInvalid},
-	OP_UNKNOWN211: {OP_UNKNOWN211, "OP_UNKNOWN211", 1, opcodeInvalid},
-	OP_UNKNOWN212: {OP_UNKNOWN212, "OP_UNKNOWN212", 1, opcodeInvalid},
-	OP_UNKNOWN213: {OP_UNKNOWN213, "OP_UNKNOWN213", 1, opcodeInvalid},
-	OP_UNKNOWN214: {OP_UNKNOWN214, "OP_UNKNOWN214", 1, opcodeInvalid},
-	OP_UNKNOWN215: {OP_UNKNOWN215, "OP_UNKNOWN215", 1, opcodeInvalid},
-	OP_UNKNOWN216: {OP_UNKNOWN216, "OP_UNKNOWN216", 1, opcodeInvalid},
-	OP_UNKNOWN217: {OP_UNKNOWN217, "OP_UNKNOWN217", 1, opcodeInvalid},
-	OP_UNKNOWN218: {OP_UNKNOWN218, "OP_UNKNOWN218", 1, opcodeInvalid},
-	OP_UNKNOWN219: {OP_UNKNOWN219, "OP_UNKNOWN219", 1, opcodeInvalid},
-	OP_UNKNOWN220: {OP_UNKNOWN220, "OP_UNKNOWN220", 1, opcodeInvalid},
-	OP_UNKNOWN221: {OP_UNKNOWN221, "OP_UNKNOWN221", 1, opcodeInvalid},
-	OP_UNKNOWN222: {OP_UNKNOWN222, "OP_UNKNOWN222", 1, opcodeInvalid},
-	OP_UNKNOWN223: {OP_UNKNOWN223, "OP_UNKNOWN223", 1, opcodeInvalid},
-	OP_UNKNOWN224: {OP_UNKNOWN224, "OP_UNKNOWN224", 1, opcodeInvalid},
-	OP_UNKNOWN225: {OP_UNKNOWN225, "OP_UNKNOWN225", 1, opcodeInvalid},
-	OP_UNKNOWN226: {OP_UNKNOWN226, "OP_UNKNOWN226", 1, opcodeInvalid},
-	OP_UNKNOWN227: {OP_UNKNOWN227, "OP_UNKNOWN227", 1, opcodeInvalid},
-	OP_UNKNOWN228: {OP_UNKNOWN228, "OP_UNKNOWN228", 1, opcodeInvalid},
-	OP_UNKNOWN229: {OP_UNKNOWN229, "OP_UNKNOWN229", 1, opcodeInvalid},
-	OP_UNKNOWN230: {OP_UNKNOWN230, "OP_UNKNOWN230", 1, opcodeInvalid},
-	OP_UNKNOWN231: {OP_UNKNOWN231, "OP_UNKNOWN231", 1, opcodeInvalid},
-	OP_UNKNOWN232: {OP_UNKNOWN232, "OP_UNKNOWN232", 1, opcodeInvalid},
-	OP_UNKNOWN233: {OP_UNKNOWN233, "OP_UNKNOWN233", 1, opcodeInvalid},
-	OP_UNKNOWN234: {OP_UNKNOWN234, "OP_UNKNOWN234", 1, opcodeInvalid},
-	OP_UNKNOWN235: {OP_UNKNOWN235, "OP_UNKNOWN235", 1, opcodeInvalid},
-	OP_UNKNOWN236: {OP_UNKNOWN236, "OP_UNKNOWN236", 1, opcodeInvalid},
-	OP_UNKNOWN237: {OP_UNKNOWN237, "OP_UNKNOWN237", 1, opcodeInvalid},
-	OP_UNKNOWN238: {OP_UNKNOWN238, "OP_UNKNOWN238", 1, opcodeInvalid},
-	OP_UNKNOWN239: {OP_UNKNOWN239, "OP_UNKNOWN239", 1, opcodeInvalid},
-	OP_UNKNOWN240: {OP_UNKNOWN240, "OP_UNKNOWN240", 1, opcodeInvalid},
-	OP_UNKNOWN241: {OP_UNKNOWN241, "OP_UNKNOWN241", 1, opcodeInvalid},
-	OP_UNKNOWN242: {OP_UNKNOWN242, "OP_UNKNOWN242", 1, opcodeInvalid},
-	OP_UNKNOWN243: {OP_UNKNOWN243, "OP_UNKNOWN243", 1, opcodeInvalid},
-	OP_UNKNOWN244: {OP_UNKNOWN244, "OP_UNKNOWN244", 1, opcodeInvalid},
-	OP_UNKNOWN245: {OP_UNKNOWN245, "OP_UNKNOWN245", 1, opcodeInvalid},
-	OP_UNKNOWN246: {OP_UNKNOWN246, "OP_UNKNOWN246", 1, opcodeInvalid},
-	OP_UNKNOWN247: {OP_UNKNOWN247, "OP_UNKNOWN247", 1, opcodeInvalid},
-	OP_UNKNOWN248: {OP_UNKNOWN248, "OP_UNKNOWN248", 1, opcodeInvalid},
-	OP_UNKNOWN249: {OP_UNKNOWN249, "OP_UNKNOWN249", 1, opcodeInvalid},
+	OP_CHECKCONTRACTVERIFY: {OP_CHECKCONTRACTVERIFY, "OP_CHECKCONTRACTVERIFY", 1, opcodeCheckContractVerify},
+	OP_UNKNOWN188:          {OP_UNKNOWN188, "OP_UNKNOWN188", 1, opcodeInvalid},
+	OP_UNKNOWN189:          {OP_UNKNOWN189, "OP_UNKNOWN189", 1, opcodeInvalid},
+	OP_UNKNOWN190:          {OP_UNKNOWN190, "OP_UNKNOWN190", 1, opcodeInvalid},
+	OP_UNKNOWN191:          {OP_UNKNOWN191, "OP_UNKNOWN191", 1, opcodeInvalid},
+	OP_UNKNOWN192:          {OP_UNKNOWN192, "OP_UNKNOWN192", 1, opcodeInvalid},
+	OP_UNKNOWN193:          {OP_UNKNOWN193, "OP_UNKNOWN193", 1, opcodeInvalid},
+	OP_UNKNOWN194:          {OP_UNKNOWN194, "OP_UNKNOWN194", 1, opcodeInvalid},
+	OP_UNKNOWN195:          {OP_UNKNOWN195, "OP_UNKNOWN195", 1, opcodeInvalid},
+	OP_UNKNOWN196:          {OP_UNKNOWN196, "OP_UNKNOWN196", 1, opcodeInvalid},
+	OP_UNKNOWN197:          {OP_UNKNOWN197, "OP_UNKNOWN197", 1, opcodeInvalid},
+	OP_UNKNOWN198:          {OP_UNKNOWN198, "OP_UNKNOWN198", 1, opcodeInvalid},
+	OP_UNKNOWN199:          {OP_UNKNOWN199, "OP_UNKNOWN199", 1, opcodeInvalid},
+	OP_UNKNOWN200:          {OP_UNKNOWN200, "OP_UNKNOWN200", 1, opcodeInvalid},
+	OP_UNKNOWN201:          {OP_UNKNOWN201, "OP_UNKNOWN201", 1, opcodeInvalid},
+	OP_UNKNOWN202:          {OP_UNKNOWN202, "OP_UNKNOWN202", 1, opcodeInvalid},
+	OP_UNKNOWN203:          {OP_UNKNOWN203, "OP_UNKNOWN203", 1, opcodeInvalid},
+	OP_UNKNOWN204:          {OP_UNKNOWN204, "OP_UNKNOWN204", 1, opcodeInvalid},
+	OP_UNKNOWN205:          {OP_UNKNOWN205, "OP_UNKNOWN205", 1, opcodeInvalid},
+	OP_UNKNOWN206:          {OP_UNKNOWN206, "OP_UNKNOWN206", 1, opcodeInvalid},
+	OP_UNKNOWN207:          {OP_UNKNOWN207, "OP_UNKNOWN207", 1, opcodeInvalid},
+	OP_UNKNOWN208:          {OP_UNKNOWN208, "OP_UNKNOWN208", 1, opcodeInvalid},
+	OP_UNKNOWN209:          {OP_UNKNOWN209, "OP_UNKNOWN209", 1, opcodeInvalid},
+	OP_UNKNOWN210:          {OP_UNKNOWN210, "OP_UNKNOWN210", 1, opcodeInvalid},
+	OP_UNKNOWN211:          {OP_UNKNOWN211, "OP_UNKNOWN211", 1, opcodeInvalid},
+	OP_UNKNOWN212:          {OP_UNKNOWN212, "OP_UNKNOWN212", 1, opcodeInvalid},
+	OP_UNKNOWN213:          {OP_UNKNOWN213, "OP_UNKNOWN213", 1, opcodeInvalid},
+	OP_UNKNOWN214:          {OP_UNKNOWN214, "OP_UNKNOWN214", 1, opcodeInvalid},
+	OP_UNKNOWN215:          {OP_UNKNOWN215, "OP_UNKNOWN215", 1, opcodeInvalid},
+	OP_UNKNOWN216:          {OP_UNKNOWN216, "OP_UNKNOWN216", 1, opcodeInvalid},
+	OP_UNKNOWN217:          {OP_UNKNOWN217, "OP_UNKNOWN217", 1, opcodeInvalid},
+	OP_UNKNOWN218:          {OP_UNKNOWN218, "OP_UNKNOWN218", 1, opcodeInvalid},
+	OP_UNKNOWN219:          {OP_UNKNOWN219, "OP_UNKNOWN219", 1, opcodeInvalid},
+	OP_UNKNOWN220:          {OP_UNKNOWN220, "OP_UNKNOWN220", 1, opcodeInvalid},
+	OP_UNKNOWN221:          {OP_UNKNOWN221, "OP_UNKNOWN221", 1, opcodeInvalid},
+	OP_UNKNOWN222:          {OP_UNKNOWN222, "OP_UNKNOWN222", 1, opcodeInvalid},
+	OP_UNKNOWN223:          {OP_UNKNOWN223, "OP_UNKNOWN223", 1, opcodeInvalid},
+	OP_UNKNOWN224:          {OP_UNKNOWN224, "OP_UNKNOWN224", 1, opcodeInvalid},
+	OP_UNKNOWN225:          {OP_UNKNOWN225, "OP_UNKNOWN225", 1, opcodeInvalid},
+	OP_UNKNOWN226:          {OP_UNKNOWN226, "OP_UNKNOWN226", 1, opcodeInvalid},
+	OP_UNKNOWN227:          {OP_UNKNOWN227, "OP_UNKNOWN227", 1, opcodeInvalid},
+	OP_UNKNOWN228:          {OP_UNKNOWN228, "OP_UNKNOWN228", 1, opcodeInvalid},
+	OP_UNKNOWN229:          {OP_UNKNOWN229, "OP_UNKNOWN229", 1, opcodeInvalid},
+	OP_UNKNOWN230:          {OP_UNKNOWN230, "OP_UNKNOWN230", 1, opcodeInvalid},
+	OP_UNKNOWN231:          {OP_UNKNOWN231, "OP_UNKNOWN231", 1, opcodeInvalid},
+	OP_UNKNOWN232:          {OP_UNKNOWN232, "OP_UNKNOWN232", 1, opcodeInvalid},
+	OP_UNKNOWN233:          {OP_UNKNOWN233, "OP_UNKNOWN233", 1, opcodeInvalid},
+	OP_UNKNOWN234:          {OP_UNKNOWN234, "OP_UNKNOWN234", 1, opcodeInvalid},
+	OP_UNKNOWN235:          {OP_UNKNOWN235, "OP_UNKNOWN235", 1, opcodeInvalid},
+	OP_UNKNOWN236:          {OP_UNKNOWN236, "OP_UNKNOWN236", 1, opcodeInvalid},
+	OP_UNKNOWN237:          {OP_UNKNOWN237, "OP_UNKNOWN237", 1, opcodeInvalid},
+	OP_UNKNOWN238:          {OP_UNKNOWN238, "OP_UNKNOWN238", 1, opcodeInvalid},
+	OP_UNKNOWN239:          {OP_UNKNOWN239, "OP_UNKNOWN239", 1, opcodeInvalid},
+	OP_UNKNOWN240:          {OP_UNKNOWN240, "OP_UNKNOWN240", 1, opcodeInvalid},
+	OP_UNKNOWN241:          {OP_UNKNOWN241, "OP_UNKNOWN241", 1, opcodeInvalid},
+	OP_UNKNOWN242:          {OP_UNKNOWN242, "OP_UNKNOWN242", 1, opcodeInvalid},
+	OP_UNKNOWN243:          {OP_UNKNOWN243, "OP_UNKNOWN243", 1, opcodeInvalid},
+	OP_UNKNOWN244:          {OP_UNKNOWN244, "OP_UNKNOWN244", 1, opcodeInvalid},
+	OP_UNKNOWN245:          {OP_UNKNOWN245, "OP_UNKNOWN245", 1, opcodeInvalid},
+	OP_UNKNOWN246:          {OP_UNKNOWN246, "OP_UNKNOWN246", 1, opcodeInvalid},
+	OP_UNKNOWN247:          {OP_UNKNOWN247, "OP_UNKNOWN247", 1, opcodeInvalid},
+	OP_UNKNOWN248:          {OP_UNKNOWN248, "OP_UNKNOWN248", 1, opcodeInvalid},
+	OP_UNKNOWN249:          {OP_UNKNOWN249, "OP_UNKNOWN249", 1, opcodeInvalid},
 
 	// Bitcoin Core internal use opcode.  Defined here for completeness.
 	OP_SMALLINTEGER: {OP_SMALLINTEGER, "OP_SMALLINTEGER", 1, opcodeInvalid},
@@ -617,28 +618,27 @@ var opcodeOnelineRepls = map[string]string{
 // codes that cause execution to automatically succeed. This map is used to
 // quickly look up the op codes during script pre-processing.
 var successOpcodes = map[byte]struct{}{
-	OP_RESERVED:     {}, // 80
-	OP_VER:          {}, // 98
-	OP_CAT:          {}, // 126
-	OP_SUBSTR:       {}, // 127
-	OP_LEFT:         {}, // 128
-	OP_RIGHT:        {}, // 129
-	OP_INVERT:       {}, // 131
-	OP_AND:          {}, // 132
-	OP_OR:           {}, // 133
-	OP_XOR:          {}, // 134
-	OP_RESERVED1:    {}, // 137
-	OP_RESERVED2:    {}, // 138
-	OP_2MUL:         {}, // 141
-	OP_2DIV:         {}, // 142
-	OP_MUL:          {}, // 149
-	OP_DIV:          {}, // 150
-	OP_MOD:          {}, // 151
-	OP_LSHIFT:       {}, // 152
-	OP_RSHIFT:       {}, // 153
-	OP_UNKNOWN187:   {}, // 187
-	OP_UNKNOWN188:   {}, // 188
-	OP_UNKNOWN189:   {}, // 189
+	OP_RESERVED:  {}, // 80
+	OP_VER:       {}, // 98
+	OP_SUBSTR:    {}, // 127
+	OP_LEFT:      {}, // 128
+	OP_RIGHT:     {}, // 129
+	OP_INVERT:    {}, // 131
+	OP_AND:       {}, // 132
+	OP_OR:        {}, // 133
+	OP_XOR:       {}, // 134
+	OP_RESERVED1: {}, // 137
+	OP_RESERVED2: {}, // 138
+	OP_2MUL:      {}, // 141
+	OP_2DIV:      {}, // 142
+	OP_MUL:       {}, // 149
+	OP_DIV:       {}, // 150
+	OP_MOD:       {}, // 151
+	OP_LSHIFT:    {}, // 152
+	OP_RSHIFT:    {}, // 153
+	//	OP_CHECKCONTRACTVERIFY:  {}, // 187
+	//	OP_CHECKOUTPUTCONTRACT: {}, // 188
+	//	OP_CHECKTWEAK:   {}, // 189
 	OP_UNKNOWN190:   {}, // 190
 	OP_UNKNOWN191:   {}, // 191
 	OP_UNKNOWN192:   {}, // 192
@@ -1910,7 +1910,10 @@ func opcodeSha256(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
+	//fmt.Println("sha256 of", hex.EncodeToString(buf))
+
 	hash := sha256.Sum256(buf)
+	//fmt.Println("sha256 result", hex.EncodeToString(hash[:]))
 	vm.dstack.PushByteArray(hash[:])
 	return nil
 }
@@ -1941,6 +1944,171 @@ func opcodeHash256(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	vm.dstack.PushByteArray(chainhash.DoubleHashB(buf))
+	return nil
+}
+
+// opcodeCat concatenates the top two stack items, leaving the result on the
+// stack.
+//
+// Stack transformation: [...x1 x2] -> [... x1|x2]
+func opcodeCat(op *opcode, data []byte, vm *Engine) error {
+	// This op code can only be used if tapsript execution is active.
+	// Before the soft fork, this opcode was disabled.
+	if vm.taprootCtx == nil {
+		return opcodeDisabled(op, data, vm)
+	}
+
+	x2, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	x1, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	n := len(x1) + len(x2)
+
+	// Ensure result is within the max allowed size.
+	if n > MaxScriptElementSize {
+		str := fmt.Sprintf("element size %d exceeds max allowed size %d",
+			n, MaxScriptElementSize)
+		return scriptError(ErrElementTooBig, str)
+	}
+
+	c := make([]byte, n)
+	copy(c[:], x1[:])
+	copy(c[len(x1):], x2[:])
+
+	vm.dstack.PushByteArray(c)
+	return nil
+}
+
+var BIP341_NUMS_POINT = []byte{
+	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
+	0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
+}
+
+// Flag to mark an OP_CHECKCONTRACVERIFY as referring to an input.
+const CCV_FLAG_CHECK_INPUT = 1
+
+// Flag to specify that an OP_CHECKCONTRACVERIFY which refers to an output
+// does not check the output amount.
+const CCV_FLAG_IGNORE_OUTPUT_AMOUNT = 2
+
+func opcodeCheckContractVerify(op *opcode, _ []byte, vm *Engine) error {
+
+	flags, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	// TODO: Check OP_success flags
+
+	taptree, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	keyBytes, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	index, err := vm.dstack.PopInt()
+	if err != nil {
+		return err
+	}
+
+	data, err := vm.dstack.PopByteArray()
+	if err != nil {
+		return err
+	}
+
+	// TODO: why 0x81? Because it has the sign bit set
+	if len(taptree) == 1 && taptree[0] == 0x81 {
+		taptree = vm.taprootCtx.taprootHash
+	}
+
+	if len(keyBytes) == 1 && keyBytes[0] == 0x81 {
+		keyBytes = schnorr.SerializePubKey(vm.taprootCtx.internalKey)
+	} else if len(keyBytes) == 0 {
+		keyBytes = BIP341_NUMS_POINT
+	}
+
+	//fmt.Println("index is", index)
+	prev := index
+	if index == -1 {
+		index = scriptNum(vm.txIdx)
+		//fmt.Println("changing index to", index)
+	}
+
+	if prev == -1 {
+		//	panic(fmt.Sprintf("index was %d now is %d", prev, index))
+	}
+
+	key, err := schnorr.ParsePubKey(keyBytes)
+	if err != nil {
+		return err
+	}
+
+	var scriptPubKey []byte
+	//fmt.Printf("flags: %x\n", flags)
+	// TODO: validate index
+	if flags&CCV_FLAG_CHECK_INPUT != 0 {
+		prevOut := vm.prevOutFetcher.FetchPrevOutput(
+			vm.tx.TxIn[index].PreviousOutPoint,
+		)
+		// TODO: check nil
+		scriptPubKey = prevOut.PkScript
+		//fmt.Printf("input flag. script: %x\n", scriptPubKey)
+	} else {
+		scriptPubKey = vm.tx.TxOut[index].PkScript
+		//fmt.Printf("output flag. script: %x\n", scriptPubKey)
+
+		// If checking output, also add the output amount if not
+		// disabled.
+		if flags&CCV_FLAG_IGNORE_OUTPUT_AMOUNT == 0 {
+			prevOut := vm.prevOutFetcher.FetchPrevOutput(
+				vm.tx.TxIn[vm.txIdx].PreviousOutPoint,
+			)
+			vm.taprootCtx.deferredAmounts[index] = append(
+				vm.taprootCtx.deferredAmounts[index],
+				inputAmt{vm.txIdx, prevOut.Value},
+			)
+		}
+	}
+
+	tweaked := key
+	if len(data) != 0 {
+		// Tweak key with data.
+		tweaked = SingleTweakPubKey(key, data)
+	}
+
+	// Tweak again with taptree.
+	outputKey := tweaked
+	if len(taptree) != 0 {
+		outputKey = ComputeTaprootOutputKey(tweaked, taptree)
+	}
+
+	a := scriptPubKey
+	b, err := PayToTaprootScript(outputKey)
+	if err != nil {
+		return err
+	}
+
+	//fmt.Printf("key: %x\n", keyBytes)
+	//fmt.Printf("tweak data: %x\n", data)
+	//fmt.Printf("taptree: %x\n", taptree)
+
+	if !bytes.Equal(a, b) {
+		//fmt.Printf("not tweaked: %x vs %x\n", a, b)
+		return fmt.Errorf("not tweaked: %x vs %x", a, b)
+	}
+
+	// TODO: deferred amount checks.
+
 	return nil
 }
 
