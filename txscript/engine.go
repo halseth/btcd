@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -168,6 +169,22 @@ type taprootExecutionCtx struct {
 	sigOpsBudget int32
 
 	mustSucceed bool
+
+	internalKey *btcec.PublicKey
+	taprootHash []byte
+
+	// map inputIdx -> []{outputIdx,amt_mode}
+	inputAllocation map[int][]outputAmt
+}
+
+const (
+	CCV_PRESERVE_AMOUNT = 0
+	CCV_DEDUCT_AMOUNT   = 1
+)
+
+type outputAmt struct {
+	index int32
+	mode  int
 }
 
 // sigOpsDelta is both the starting budget for sig ops for tapscript
@@ -192,8 +209,9 @@ func (t *taprootExecutionCtx) tallysigOp() error {
 // context.
 func newTaprootExecutionCtx(inputWitnessSize int32) *taprootExecutionCtx {
 	return &taprootExecutionCtx{
-		codeSepPos:   blankCodeSepValue,
-		sigOpsBudget: sigOpsDelta + inputWitnessSize,
+		codeSepPos:      blankCodeSepValue,
+		sigOpsBudget:    sigOpsDelta + inputWitnessSize,
+		inputAllocation: make(map[int][]outputAmt),
 	}
 }
 
@@ -751,6 +769,8 @@ func (vm *Engine) verifyWitnessProgram(witness wire.TxWitness) error {
 			vm.taprootCtx.tapLeafHash = NewBaseTapLeaf(
 				witnessScript,
 			).TapHash()
+			vm.taprootCtx.internalKey = controlBlock.InternalKey
+			vm.taprootCtx.taprootHash = controlBlock.RootHash(witnessScript)
 
 			// Otherwise, we'll now "recurse" one level deeper, and
 			// set the remaining witness (leaving off the annex and
@@ -876,6 +896,58 @@ func (vm *Engine) DisasmScript(idx int) (string, error) {
 func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 	if vm.taprootCtx != nil && vm.taprootCtx.mustSucceed {
 		return nil
+	}
+
+	// TODO: should be checked somewhere else? Must check BIP
+	if vm.taprootCtx != nil {
+		outputAllocation := make(map[int32]int64)
+
+		for inputIdx, outputs := range vm.taprootCtx.inputAllocation {
+
+			// We sort outputs in order to handle all deducts
+			// first. An input cannot have more than a single
+			// preserve (default) mode in a transaction.
+			sort.Slice(outputs, func(i, j int) bool {
+				// TODO: check this logic
+				return outputs[i].mode == CCV_DEDUCT_AMOUNT
+			})
+
+			prevOut := vm.prevOutFetcher.FetchPrevOutput(
+				vm.tx.TxIn[inputIdx].PreviousOutPoint,
+			)
+
+			remInputAmt := prevOut.Value
+
+			for _, out := range outputs {
+				outputAmt := vm.tx.TxOut[out.index].Value
+
+				switch out.mode {
+				case CCV_DEDUCT_AMOUNT:
+					remInputAmt -= outputAmt
+					outputAllocation[out.index] += outputAmt
+
+				case CCV_PRESERVE_AMOUNT:
+					outputAllocation[out.index] += remInputAmt
+					remInputAmt = 0
+
+				default:
+					// NOT POSSIBLE
+				}
+			}
+
+			if remInputAmt != 0 {
+				panic("can this be possible?")
+			}
+		}
+
+		// TODO: need to check better that an output/input is not used
+		// twice?
+		for outputIdx, outputAmt := range outputAllocation {
+			if vm.tx.TxOut[outputIdx].Value != outputAmt {
+				return fmt.Errorf("output amt does not match")
+			}
+		}
+
 	}
 
 	// Check execution is actually done by ensuring the script index is after
@@ -1145,6 +1217,7 @@ func (vm *Engine) Execute() (err error) {
 		}
 	}
 
+	// checks if 01 is on the stack
 	return vm.CheckErrorCondition(true)
 }
 
